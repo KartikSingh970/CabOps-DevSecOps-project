@@ -1,0 +1,67 @@
+---
+- name: Setup DevOps Tools
+  hosts: devops_servers
+  become: yes
+
+  vars:
+    docker_packages:
+      - docker.io
+      - docker-compose
+    dev_tools:
+      - git
+      - unzip
+      - curl
+      - python3-pip   
+    terraform_version: "1.6.5"
+
+  tasks:
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install development tools
+      apt:
+        name: "{{ dev_tools }}"
+        state: present
+
+    - name: Install Docker and Docker Compose
+      apt:
+        name: "{{ docker_packages }}"
+        state: present
+
+    - name: Add current user to docker group
+      user:
+        name: ubuntu
+        groups: docker
+        append: yes
+
+    - name: Install kubectl
+      shell: |
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      args:
+        creates: /usr/local/bin/kubectl
+
+    - name: Install Terraform
+      shell: |
+        wget https://releases.hashicorp.com/terraform/{{ terraform_version }}/terraform_{{ terraform_version }}_linux_amd64.zip
+        unzip terraform_{{ terraform_version }}_linux_amd64.zip -d /usr/local/bin/
+        rm terraform_{{ terraform_version }}_linux_amd64.zip
+      args:
+        creates: /usr/local/bin/terraform
+
+    - name: Install Trivy
+      shell: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+      args:
+        creates: /usr/local/bin/trivy
+
+    - name: Install AWS CLI v2
+      shell: |
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip awscliv2.zip
+        sudo ./aws/install
+        rm -rf awscliv2.zip aws
+      args:
+        creates: /usr/local/bin/aws

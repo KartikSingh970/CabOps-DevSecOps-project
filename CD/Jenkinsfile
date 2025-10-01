@@ -1,0 +1,85 @@
+pipeline {
+    agent any
+    tools {
+        jdk 'jdk17'
+        nodejs 'node16'
+    }
+    environment {
+        SCANNER_HOME = tool 'sonar-scanner'
+    }
+    stages {
+        stage('clean workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+        stage('Checkout from Git') {
+            steps {
+                git branch: 'main', url: 'https://github.com/KartikSingh970/uber-clone/CD/Jenkinsfile'
+            }
+        }
+        stage("Sonarqube Analysis ") {
+            steps {
+                withSonarQubeEnv('sonar-server') {
+                    sh ''' $SCANNER_HOME/bin/sonar-scanner -Dsonar.projectName=Uber \
+                    -Dsonar.projectKey=Uber'''
+                }
+            }
+        }
+        stage("quality gate") {
+            steps {
+                script {
+                    waitForQualityGate abortPipeline: false, credentialsId: 'Sonar-token'
+                }
+            }
+        }
+        stage('Install Dependencies') {
+            steps {
+                sh "npm install"
+            }
+        }
+        stage("OWASP Dependency-Check") {
+            steps {
+                sh "dependency-check --project Uber --scan . --out owasp-report"
+            }
+        }
+        stage('TRIVY FS SCAN') {
+            steps {
+                sh "trivy fs . > trivyfs.txt"
+            }
+        }
+        stage("Docker Build & Push") {
+            steps {
+                script {
+                    withDockerRegistry(credentialsId: 'docker', url: '') {
+                        sh "docker build -t uber ."
+                        sh "docker tag uber karrtiksinghh/uber:latest"
+                        sh "docker push karrtiksinghh/uber:latest"
+                    }
+                }
+            }
+        }
+        stage("TRIVY") {
+            steps {
+                sh "trivy image karrtiksinghh/uber:latest > trivyimage.txt"
+            }
+        }
+        stage("deploy_docker") {
+            steps {
+                sh "docker run -d --name uber -p 3000:3000 karrtiksinghh/uber:latest"
+            }
+        }
+        stage("Deploy to Kubernetes") {
+            steps {
+                withCredentials([file(credentialsId: 'k8s', variable: 'KUBECONFIG_FILE')]) {
+                    sh '''
+                        export KUBECONFIG=$KUBECONFIG_FILE
+                        kubectl apply -f K8S/
+                    '''
+                }
+            }
+        }
+    }
+}
+
+
