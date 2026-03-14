@@ -3,7 +3,7 @@ kind: Deployment
 metadata:
   name: uber-deployment
 spec:
-  replicas: 1  # Number of desired replicas
+  replicas: 1  
   selector:
     matchLabels:
       app: uber
@@ -16,5 +16,5 @@ spec:
       - name: uber
         image: sevenajay/uber:latest
         ports:
-        - containerPort: 3000  # Port your application listens on
+        - containerPort: 3000  
 
